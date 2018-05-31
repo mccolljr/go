@@ -334,7 +334,7 @@ const fileCode = `package main
 
 func main() {
 	var err error
-	collect err.This.That.TheOther {
+	__collect__ err {
 		_!, x := trySomething1()
 		_!, y := trySomething2()
 		_! = trySomething3(x, y)
