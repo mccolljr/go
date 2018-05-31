@@ -263,6 +263,35 @@ var sampleTokens = [...]struct {
 	{_Var, "var", 0, 0},
 }
 
+func TestSpecialIdents(t *testing.T) {
+	cases := []struct {
+		allowSpecial bool
+		tok          token
+		lit, wantLit string
+	}{
+		{true, _Name, "_!", "_!"},
+		{false, _Name, "_!", "_"},
+		{true, _Name, "__!", "__"},
+		{true, _Name, "a!", "a"},
+	}
+
+	for i, c := range cases {
+		buf := bytes.NewBuffer([]byte(c.lit))
+		got := scanner{
+			allowSpecial: c.allowSpecial,
+		}
+		got.init(buf, nil, 0)
+		got.next()
+		if got.tok != c.tok {
+			t.Errorf("case %d: token mismatch: wanted %s, got %s", i, c.tok, got.tok)
+		}
+
+		if gotLit := string(got.lit); gotLit != c.wantLit {
+			t.Errorf("case %d: literal mismatch: wanted %q, got %q", i, c.wantLit, gotLit)
+		}
+	}
+}
+
 func TestComments(t *testing.T) {
 	type comment struct {
 		line, col uint // 0-based

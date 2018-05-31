@@ -9,6 +9,7 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -326,5 +327,37 @@ func TestLineDirectives(t *testing.T) {
 		if col := pos.RelCol(); col != test.col {
 			t.Errorf("%s: got col = %d; want %d", test.src, col, test.col)
 		}
+	}
+}
+
+const fileCode = `package main
+
+func main() {
+	var err error
+	collect err.This.That.TheOther {
+		_!, x := trySomething1()
+		_!, y := trySomething2()
+		_! = trySomething3(x, y)
+	}
+}
+`
+
+func TestCollectStmt(t *testing.T) {
+	defer func(t *testing.T) {
+		err := recover()
+		if err != nil {
+			t.Errorf("%s", err)
+		}
+	}(t)
+
+	code := bytes.NewBuffer([]byte(fileCode))
+	var p parser
+	p.init(NewFileBase("<test>"), code, nil, nil, 0)
+	p.next()
+	f := p.fileOrNil()
+	if f == nil {
+		t.Error("unexpected nil file")
+	} else {
+		Fdump(os.Stdout, f)
 	}
 }

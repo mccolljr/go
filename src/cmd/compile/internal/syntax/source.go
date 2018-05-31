@@ -198,11 +198,16 @@ func (s *source) startLit() {
 }
 
 func (s *source) stopLit() []byte {
+	lit := s.peekLit()
+	s.killLit()
+	return lit
+}
+
+func (s *source) peekLit() []byte {
 	lit := s.buf[s.suf:s.r]
 	if len(s.lit) > 0 {
 		lit = append(s.lit, lit...)
 	}
-	s.killLit()
 	return lit
 }
 

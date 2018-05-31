@@ -39,6 +39,9 @@ type scanner struct {
 	kind      LitKind  // valid if tok is _Literal
 	op        Operator // valid if tok is _Operator, _AssignOp, or _IncOp
 	prec      int      // valid if tok is _Operator, _AssignOp, or _IncOp
+
+	// identifier parsing mode
+	allowSpecial bool
 }
 
 func (s *scanner) init(src io.Reader, errh func(line, col uint, msg string), mode uint) {
@@ -327,7 +330,7 @@ func isDigit(c rune) bool {
 	return '0' <= c && c <= '9'
 }
 
-func (s *scanner) ident() {
+func (s *scanner) ident(special ...bool) {
 	s.startLit()
 
 	// accelerate common case (7bit ASCII)
@@ -342,7 +345,21 @@ func (s *scanner) ident() {
 			c = s.getr()
 		}
 	}
-	s.ungetr()
+
+	if s.allowSpecial {
+		// we ARE parsing special idents
+		switch c {
+		case '!':
+			if string(s.peekLit()) != "_!" {
+				s.ungetr()
+			}
+		default:
+			s.ungetr()
+		}
+	} else {
+		// we ARE NOT parsing special idents
+		s.ungetr()
+	}
 
 	lit := s.stopLit()
 
@@ -392,7 +409,7 @@ var keywordMap [1 << 6]token // size must be power of two
 
 func init() {
 	// populate keywordMap
-	for tok := _Break; tok <= _Var; tok++ {
+	for tok := _Break; tok <= _Collect; tok++ {
 		h := hash([]byte(tok.String()))
 		if keywordMap[h] != 0 {
 			panic("imperfect hash")
@@ -750,3 +767,6 @@ func (s *scanner) escape(quote rune) bool {
 
 	return true
 }
+
+func (s *scanner) enableSpecial()  { s.allowSpecial = true }
+func (s *scanner) disableSpecial() { s.allowSpecial = false }

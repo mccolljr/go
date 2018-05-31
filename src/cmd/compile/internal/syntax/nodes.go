@@ -409,6 +409,12 @@ type (
 		Rbrace Pos
 		stmt
 	}
+
+	CollectStmt struct {
+		Target Expr // *SelectorExpr or *Name
+		Body   *BlockStmt
+		stmt
+	}
 )
 
 type (

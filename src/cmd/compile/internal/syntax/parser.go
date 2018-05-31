@@ -1905,6 +1905,33 @@ func (p *parser) ifStmt() *IfStmt {
 	return s
 }
 
+func (p *parser) collectStmt() *CollectStmt {
+	if trace {
+		defer p.trace("collectStmt")()
+	}
+	origVal := p.allowSpecial
+	s := new(CollectStmt)
+	s.pos = p.pos()
+
+	p.enableSpecial()
+	p.next()
+
+	exp := Expr(p.name())
+	for p.tok == _Dot {
+		p.next()
+		sel := &SelectorExpr{X: exp}
+		sel.Sel = p.name()
+		exp = sel
+	}
+
+	s.Target = exp
+	s.Body = p.blockStmt("collect clause")
+	if !origVal {
+		p.disableSpecial()
+	}
+	return s
+}
+
 func (p *parser) switchStmt() *SwitchStmt {
 	if trace {
 		defer p.trace("switchStmt")()
@@ -2073,6 +2100,9 @@ func (p *parser) stmtOrNil() Stmt {
 
 	case _If:
 		return p.ifStmt()
+
+	case _Collect:
+		return p.collectStmt()
 
 	case _Fallthrough:
 		s := new(BranchStmt)
