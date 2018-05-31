@@ -20,7 +20,7 @@ func main() {
 
 	var err error
 
-	collect err {
+	__collect__ err {
 		var (
 			data1, data2, data3 []byte
 		)

@@ -65,7 +65,7 @@ const (
 	_Switch      // switch
 	_Type        // type
 	_Var         // var
-	_Collect     // collect
+	_Collect     // __collect__
 	// empty line comment to exclude it from .String
 	tokenCount //
 )
