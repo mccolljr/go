@@ -411,7 +411,7 @@ type (
 	}
 
 	CollectStmt struct {
-		Target Expr // *SelectorExpr or *Name
+		Target *Name
 		Body   *BlockStmt
 		stmt
 	}

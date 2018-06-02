@@ -9,7 +9,6 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -330,34 +329,61 @@ func TestLineDirectives(t *testing.T) {
 	}
 }
 
-const fileCode = `package main
-
-func main() {
-	var err error
-	__collect__ err {
-		_!, x := trySomething1()
-		_!, y := trySomething2()
-		_! = trySomething3(x, y)
-	}
-}
-`
-
 func TestCollectStmt(t *testing.T) {
-	defer func(t *testing.T) {
-		err := recover()
-		if err != nil {
-			t.Errorf("%s", err)
-		}
-	}(t)
+	var cases = []struct {
+		src     string
+		wantErr bool
+		wantMsg string
+	}{
+		// not allowed
+		{"_collect_ {}", true, "syntax error: unexpected {, expecting name"},
+		{"_collect_ something.Something {}", true, "unexpected ., expecting { after collect clause"},
+		{"_collect_ something[\"something\"] {}", true, "unexpected [, expecting { after collect clause"},
+		{"_collect_ something[1] {}", true, "unexpected [, expecting { after collect clause"},
+		{"_collect_ something[:] {}", true, "unexpected [, expecting { after collect clause"},
+		{"_collect_ something[1:2] {}", true, "unexpected [, expecting { after collect clause"},
+		{"_collect_ something() {}", true, "unexpected (, expecting { after collect clause"},
 
-	code := bytes.NewBuffer([]byte(fileCode))
-	var p parser
-	p.init(NewFileBase("<test>"), code, nil, nil, 0)
-	p.next()
-	f := p.fileOrNil()
-	if f == nil {
-		t.Error("unexpected nil file")
-	} else {
-		Fdump(os.Stdout, f)
+		// will parse, but are illegal later
+		{"_collect_ something { _! := someFunc() }", false, ""}, // cannot re-define _!
+		{"_collect_ something { x = someFunc(_!) }", false, ""}, // cannot use _! as a value (it's always nil anyway)
+
+		// allowed
+		{"_collect_ something {}", false, ""},
+		{"_collect_ __test__ {}", false, ""},
+		{"_collect_ something { _! = nil }", false, ""},
+		{"_collect_ something { _! = someFunc() }", false, ""},
+		{"_collect_ something { _!, y = someFunc(a, b) }", false, ""},
+		{"_collect_ something { x, _! = someFunc() }", false, ""},
+		{"_collect_ something { x = someFunc() }", false, ""},
+		{"_collect_ something { x := someFunc() }", false, ""},
+	}
+
+	for i, c := range cases {
+		var (
+			code    = bytes.NewBufferString(c.src)
+			base    = NewFileBase(fmt.Sprintf("collect_test_%d.go", i))
+			errList []error
+			p       parser
+		)
+
+		p.init(base, code, func(e error) { errList = append(errList, e) }, nil, 0)
+		p.next()
+		stmt := p.collectStmt()
+		_ = stmt
+		if c.wantErr == true {
+			if len(errList) == 0 {
+				t.Fatalf("case %d: wanted error parsing %q, got none", i, c.src)
+			}
+
+			if c.wantMsg == "" || strings.Index(errList[0].Error(), c.wantMsg) < 0 {
+				t.Fatalf("case %d: wanted error %q, got %q", i, c.wantMsg, errList)
+			}
+
+		} else {
+			if len(errList) > 0 {
+				t.Fatalf("case %d: unexpected error(s) parsing %q: %s", i, c.src, errList)
+			}
+		}
 	}
 }

@@ -330,7 +330,7 @@ func isDigit(c rune) bool {
 	return '0' <= c && c <= '9'
 }
 
-func (s *scanner) ident(special ...bool) {
+func (s *scanner) ident() {
 	s.startLit()
 
 	// accelerate common case (7bit ASCII)
@@ -346,18 +346,13 @@ func (s *scanner) ident(special ...bool) {
 		}
 	}
 
-	if s.allowSpecial {
-		// we ARE parsing special idents
-		switch c {
-		case '!':
-			if string(s.peekLit()) != "_!" {
-				s.ungetr()
-			}
-		default:
+	// special case for collect target (`_!`)
+	if string(s.peekLit()) == "_!" {
+		if !s.hasSpecial() {
 			s.ungetr()
+			panic("_! (collect target) not allowed")
 		}
 	} else {
-		// we ARE NOT parsing special idents
 		s.ungetr()
 	}
 
@@ -405,7 +400,7 @@ func hash(s []byte) uint {
 	return (uint(s[0])<<4 ^ uint(s[1]) + uint(len(s))) & uint(len(keywordMap)-1)
 }
 
-var keywordMap [1 << 6]token // size must be power of two
+var keywordMap [1 << 7]token // size must be power of two
 
 func init() {
 	// populate keywordMap
@@ -768,5 +763,6 @@ func (s *scanner) escape(quote rune) bool {
 	return true
 }
 
-func (s *scanner) enableSpecial()  { s.allowSpecial = true }
-func (s *scanner) disableSpecial() { s.allowSpecial = false }
+func (s *scanner) hasSpecial() bool { return s.allowSpecial }
+func (s *scanner) enableSpecial()   { s.allowSpecial = true }
+func (s *scanner) disableSpecial()  { s.allowSpecial = false }

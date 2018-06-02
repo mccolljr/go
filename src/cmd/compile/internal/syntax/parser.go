@@ -1909,26 +1909,27 @@ func (p *parser) collectStmt() *CollectStmt {
 	if trace {
 		defer p.trace("collectStmt")()
 	}
-	origVal := p.allowSpecial
+
+	if p.tok != _Collect {
+		p.syntaxError("expected collect")
+	}
+
 	s := new(CollectStmt)
 	s.pos = p.pos()
-
-	p.enableSpecial()
 	p.next()
-
-	exp := Expr(p.name())
-	for p.tok == _Dot {
-		p.next()
-		sel := &SelectorExpr{X: exp}
-		sel.Sel = p.name()
-		exp = sel
+	s.Target = p.name()
+	if s.Target.Value == "_" {
+		p.syntaxError("cannot use _ in collect statement")
 	}
 
-	s.Target = exp
+	nestedSpecial := p.hasSpecial()
+	p.enableSpecial()
 	s.Body = p.blockStmt("collect clause")
-	if !origVal {
+
+	if !nestedSpecial {
 		p.disableSpecial()
 	}
+
 	return s
 }
 

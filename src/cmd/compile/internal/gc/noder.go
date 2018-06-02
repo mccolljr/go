@@ -45,9 +45,6 @@ func parseFiles(filenames []string) uint {
 			defer f.Close()
 
 			p.file, _ = syntax.Parse(base, f, p.error, p.pragma, syntax.CheckBranches) // errors are tracked via p.error
-			if err = syntax.RewriteFile(p.file); err != nil {
-				p.error(err.(syntax.Error))
-			}
 		}(filename)
 	}
 
