@@ -180,7 +180,7 @@ func (s *sugarizer) stmtList(list []Stmt) []Stmt {
 
 func (s *sugarizer) stmt(stmtArg Stmt) (replace Stmt, add []Stmt) {
 	s.deep++
-	if stmtArg != nil && s.deep > 7 {
+	if stmtArg != nil && s.deep > 10 {
 		fmt.Printf("|rdepth=%d| [%T]@%s\n\n", s.deep, stmtArg, stmtArg.Pos())
 	}
 	switch real := stmtArg.(type) {
@@ -329,8 +329,10 @@ func (s *sugarizer) stmt(stmtArg Stmt) (replace Stmt, add []Stmt) {
 	case *SelectStmt:
 		for _, cc := range real.Body {
 			s.openScope()
-			simple, _ := s.stmt(cc.Comm)
-			cc.Comm = simple.(SimpleStmt)
+			if cc.Comm != nil {
+				simple, _ := s.stmt(cc.Comm)
+				cc.Comm = simple.(SimpleStmt)
+			}
 
 			cc.Body = s.stmtList(cc.Body)
 			s.closeScope()

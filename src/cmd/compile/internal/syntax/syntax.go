@@ -72,6 +72,7 @@ func Parse(base *PosBase, src io.Reader, errh ErrorHandler, pragh PragmaHandler,
 
 	// return p.fileOrNil(), p.first
 
+	//*
 	f := p.fileOrNil()
 
 	if f == nil || p.first != nil {
@@ -81,6 +82,7 @@ func Parse(base *PosBase, src io.Reader, errh ErrorHandler, pragh PragmaHandler,
 	first = new(sugarizer).run(errh, f)
 
 	return f, first
+	// */
 }
 
 // ParseFile behaves like Parse but it reads the source from the named file.
