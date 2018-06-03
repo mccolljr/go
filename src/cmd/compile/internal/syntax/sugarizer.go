@@ -186,11 +186,11 @@ func (s *sugarizer) stmtList(list []Stmt) []Stmt {
 //go:noinline
 func (s *sugarizer) stmt(stmtArg Stmt) (replace Stmt, add []Stmt) {
 	s.deep++
-	if stmtArg != nil && s.deep > 10 {
+	if stmtArg != nil && s.deep > 20 {
+		fmt.Printf("|rdepth=%d| [%T]@%s\n\n", s.deep, stmtArg, stmtArg.Pos())
 		if s.deep > 50 {
 			panic("out of control recursion")
 		}
-		fmt.Printf("|rdepth=%d| [%T]@%s\n\n", s.deep, stmtArg, stmtArg.Pos())
 	}
 	switch real := stmtArg.(type) {
 	case nil: // nothing to do
