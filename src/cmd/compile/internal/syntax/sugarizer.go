@@ -154,6 +154,10 @@ func (s *sugarizer) file(f *File) {
 }
 
 func (s *sugarizer) funcDecl(f *FuncDecl) {
+	if f.Body == nil {
+		// ignore function preamble
+		return
+	}
 	s.openScope()
 	if f.Recv != nil && f.Recv.Name != nil && f.Recv.Name.Value != "_" {
 		s.scope.set(f.Recv.Name.Value, f.Recv.Name)
@@ -308,13 +312,20 @@ func (s *sugarizer) stmt(stmtArg Stmt) (replace Stmt, add []Stmt) {
 
 	case *ForStmt:
 		s.openScope()
-		real.Cond = s.expr(real.Cond)
 
-		simple, _ := s.stmt(real.Init)
-		real.Init = simple.(SimpleStmt)
+		if real.Cond != nil {
+			real.Cond = s.expr(real.Cond)
+		}
 
-		simple, _ = s.stmt(real.Post)
-		real.Post = simple.(SimpleStmt)
+		if real.Init != nil {
+			simple, _ := s.stmt(real.Init)
+			real.Init = simple.(SimpleStmt)
+		}
+
+		if real.Post != nil {
+			simple, _ := s.stmt(real.Post)
+			real.Post = simple.(SimpleStmt)
+		}
 
 		blockStmt, _ := s.stmt(real.Body)
 		real.Body = blockStmt.(*BlockStmt)
@@ -464,6 +475,9 @@ func (s *sugarizer) expr(e Expr) Expr {
 		real.Key = s.expr(real.Key)
 		real.Value = s.expr(real.Value)
 
+	case *ParenExpr:
+		real.X = s.expr(real.X)
+
 	case *FuncLit:
 		real.Type = s.exprAsType(real.Type).(*FuncType)
 		s.funcBody(real.Body, real.Type)
@@ -557,7 +571,7 @@ func (s *sugarizer) expr(e Expr) Expr {
 	case *BadExpr:
 		// impossible
 	default:
-		panic("unhandled expr")
+		panic(fmt.Sprintf("unhandled expr %T", e))
 	}
 
 	return e

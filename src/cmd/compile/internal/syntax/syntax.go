@@ -76,10 +76,12 @@ func Parse(base *PosBase, src io.Reader, errh ErrorHandler, pragh PragmaHandler,
 		return f, p.first
 	}
 
-	var s sugarizer
-	first = s.run(errh, f)
+	wait := make(chan error)
+	go func(f *File, signal chan<- error) {
+		signal <- new(sugarizer).run(errh, f)
+	}(f, wait)
 
-	return f, first
+	return f, <-wait
 }
 
 // ParseFile behaves like Parse but it reads the source from the named file.
