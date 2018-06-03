@@ -377,7 +377,7 @@ func TestCollectStmt(t *testing.T) {
 			}
 
 			if c.wantMsg == "" || strings.Index(errList[0].Error(), c.wantMsg) < 0 {
-				t.Fatalf("case %d: wanted error %q, got %q", i, c.wantMsg, errList)
+				t.Fatalf("case %d: wanted error [%s], got %s", i, c.wantMsg, errList)
 			}
 
 		} else {
