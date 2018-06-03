@@ -71,6 +71,12 @@ func (check *Checker) ident(x *operand, e *ast.Ident, def *Named, path []*TypeNa
 
 	case *TypeName:
 		x.mode = typexpr
+		// package-level alias cycles are now checked by Checker.objDecl
+		if useCycleMarking {
+			if check.objMap[obj] != nil {
+				break
+			}
+		}
 		if check.cycle(obj, path, true) {
 			// maintain x.mode == typexpr despite error
 			typ = Typ[Invalid]
@@ -132,7 +138,11 @@ func (check *Checker) cycle(obj *TypeName, path []*TypeName, report bool) bool {
 // If def != nil, e is the type specification for the named type def, declared
 // in a type declaration, and def.underlying will be set to the type of e before
 // any components of e are type-checked. Path contains the path of named types
-// referring to this type.
+// referring to this type; i.e. it is the path of named types directly containing
+// each other and leading to the current type e. Indirect containment (e.g. via
+// pointer indirection, function parameter, etc.) breaks the path (leads to a new
+// path, and usually via calling Checker.typ below) and those types are not found
+// in the path.
 //
 func (check *Checker) typExpr(e ast.Expr, def *Named, path []*TypeName) (T Type) {
 	if trace {
@@ -151,7 +161,18 @@ func (check *Checker) typExpr(e ast.Expr, def *Named, path []*TypeName) (T Type)
 	return
 }
 
+// typ is like typExpr (with a nil argument for the def parameter),
+// but typ breaks type cycles. It should be called for components of
+// types that break cycles, such as pointer base types, slice or map
+// element types, etc. See the comment in typExpr for details.
+//
 func (check *Checker) typ(e ast.Expr) Type {
+	// typExpr is called with a nil path indicating an indirection:
+	// push indir sentinel on object path
+	if useCycleMarking {
+		check.push(indir)
+		defer check.pop()
+	}
 	return check.typExpr(e, nil, nil)
 }
 
