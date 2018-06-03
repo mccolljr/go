@@ -1,7 +1,6 @@
 package syntax
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"testing"
@@ -62,15 +61,10 @@ func main() {
 `
 
 func TestSugarizer(t *testing.T) {
-	errh := func(e error) { t.Fatal(e) }
+	//errh := func(e error) { t.Fatal(e) }
 	fmt.Println(os.Getwd())
-	file, _ := ParseFile("testdata/sugarizer/test.src", errh, nil, 0)
-
-	new(sugarizer).run(errh, file)
-
-	buf := new(bytes.Buffer)
-	if err := Fdump(buf, file); err != nil {
+	_, err := ParseFile("../gc/typecheck.go", nil, nil, 0)
+	if err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("\n%s\n", buf)
 }

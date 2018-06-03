@@ -70,21 +70,17 @@ func Parse(base *PosBase, src io.Reader, errh ErrorHandler, pragh PragmaHandler,
 	p.init(base, src, errh, pragh, mode)
 	p.next()
 
-	return p.fileOrNil(), p.first
+	// return p.fileOrNil(), p.first
 
-	// f := p.fileOrNil()
+	f := p.fileOrNil()
 
-	// if f == nil || p.first != nil {
-	// 	return f, p.first
-	// }
+	if f == nil || p.first != nil {
+		return f, p.first
+	}
 
-	// wait := make(chan error)
-	// go func(f *File, signal chan<- error) {
-	// 	signal <- new(sugarizer).run(errh, f)
-	// 	close(signal)
-	// }(f, wait)
+	first = new(sugarizer).run(errh, f)
 
-	// return f, <-wait
+	return f, first
 }
 
 // ParseFile behaves like Parse but it reads the source from the named file.

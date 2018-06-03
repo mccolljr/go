@@ -2,25 +2,12 @@ package syntax
 
 import (
 	"fmt"
-	"sync"
 )
+
+var _visited = map[uintptr]bool{}
 
 type rules struct {
 	collector, lhs, def, index, selector, slice, typename bool
-}
-
-var _stmtlists = sync.Pool{
-	New: func() interface{} { return make([]Stmt, 0, 256) },
-}
-
-func getStmtList() []Stmt {
-	return _stmtlists.Get().([]Stmt)
-}
-
-func putStmtList(l []Stmt) {
-	if l != nil {
-		_stmtlists.Put(l[:0])
-	}
 }
 
 // a sugarizer walks a complete parse tree and applies syntactic sugar.
@@ -178,7 +165,7 @@ func (s *sugarizer) funcBody(b *BlockStmt, t *FuncType) {
 }
 
 func (s *sugarizer) stmtList(list []Stmt) []Stmt {
-	result := getStmtList()
+	result := make([]Stmt, 0, len(list)+10)
 
 	for _, stmt := range list {
 		replace, add := s.stmt(stmt)
@@ -188,11 +175,14 @@ func (s *sugarizer) stmtList(list []Stmt) []Stmt {
 		}
 	}
 
-	putStmtList(list) // re-use
 	return result
 }
 
 func (s *sugarizer) stmt(stmtArg Stmt) (replace Stmt, add []Stmt) {
+	s.deep++
+	if stmtArg != nil && s.deep > 7 {
+		fmt.Printf("|rdepth=%d| [%T]@%s\n\n", s.deep, stmtArg, stmtArg.Pos())
+	}
 	switch real := stmtArg.(type) {
 	case nil: // nothing to do
 	case *EmptyStmt: // nothing to do
@@ -387,6 +377,8 @@ func (s *sugarizer) stmt(stmtArg Stmt) (replace Stmt, add []Stmt) {
 		panic("unhandled stmt")
 	}
 
+	s.deep--
+
 	if replace == nil {
 		return stmtArg, add
 	}
@@ -421,10 +413,6 @@ func (s *sugarizer) exprAsValue(e Expr) Expr {
 }
 
 func (s *sugarizer) expr(e Expr) Expr {
-	s.deep++
-	if s.deep > 100 {
-		panic("recursive depth too high")
-	}
 	switch real := e.(type) {
 	case nil:
 	case *Name:
@@ -578,8 +566,6 @@ func (s *sugarizer) expr(e Expr) Expr {
 	default:
 		panic(fmt.Sprintf("unhandled expr %T", e))
 	}
-
-	s.deep--
 	return e
 }
 
