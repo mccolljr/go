@@ -28,8 +28,8 @@ func putStmtList(l []Stmt) {
 // in scope
 type sugarizer struct {
 	errh func(error)
-	
-	rules rules
+
+	rules         rules
 	seenCollector bool
 
 	scope *scope
@@ -120,7 +120,7 @@ func (s *sugarizer) error(msg string, pos Pos) {
 }
 
 func (s *sugarizer) file(f *File) {
-	if s.rules != rules2{} {
+	if s.rules != *new(rules) {
 		panic("unclosed rule state")
 	}
 
@@ -158,7 +158,7 @@ func (s *sugarizer) funcDecl(f *FuncDecl) {
 
 func (s *sugarizer) funcBody(b *BlockStmt, t *FuncType) {
 	oldDef := s.rules.def
-	s.rules.def=false
+	s.rules.def = false
 	for _, parm := range t.ParamList {
 		if parm.Name != nil && parm.Name.Value != "_" {
 			s.scope.set(parm.Name.Value, parm.Name)
@@ -174,7 +174,7 @@ func (s *sugarizer) funcBody(b *BlockStmt, t *FuncType) {
 	}
 
 	b.List = s.stmtList(b.List)
-	s.rules.def=oldDef
+	s.rules.def = oldDef
 }
 
 func (s *sugarizer) stmtList(list []Stmt) []Stmt {
@@ -293,8 +293,7 @@ func (s *sugarizer) stmt(stmtArg Stmt) (replace Stmt, add []Stmt) {
 
 		if real.Else != nil {
 			s.openScope()
-			blockStmt, _ = s.stmt(real.Else)
-			real.Else = blockStmt.(*BlockStmt)
+			real.Else, _ = s.stmt(real.Else)
 			s.closeScope()
 		}
 		s.closeScope()
@@ -322,8 +321,10 @@ func (s *sugarizer) stmt(stmtArg Stmt) (replace Stmt, add []Stmt) {
 
 	case *SwitchStmt:
 		s.openScope()
-		simple, _ := s.stmt(real.Init)
-		real.Init = simple.(SimpleStmt)
+		if real.Init != nil {
+			simple, _ := s.stmt(real.Init)
+			real.Init = simple.(SimpleStmt)
+		}
 
 		real.Tag = s.expr(real.Tag)
 
@@ -380,6 +381,8 @@ func (s *sugarizer) stmt(stmtArg Stmt) (replace Stmt, add []Stmt) {
 		s.rules.collector = oldCol
 		s.popTarget()
 
+	case *RangeClause:
+
 	default:
 		panic("unhandled stmt")
 	}
@@ -395,7 +398,7 @@ func (s *sugarizer) checkLHS(lhs Expr) Expr {
 	oldLhs := s.rules.lhs
 	s.rules.lhs = true
 	lhs = s.expr(lhs)
-	s.rules.lhs = s.rules.oldLhs
+	s.rules.lhs = oldLhs
 	return lhs
 }
 
@@ -429,7 +432,7 @@ func (s *sugarizer) expr(e Expr) Expr {
 			if real.Value == "_!" {
 				s.error("_! used as type", real.Pos())
 			}
-		} else if s.rules.lhs && !(s.rules.index||s.rules.selector||s.rules.slice) {
+		} else if s.rules.lhs && !(s.rules.index || s.rules.selector || s.rules.slice) {
 			if real.Value == "_!" {
 				// if we have `_!`, that means we're in a collect block
 				// the parser rejects any program where this isn't true
