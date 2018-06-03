@@ -63,7 +63,7 @@ func main() {
 func TestSugarizer(t *testing.T) {
 	//errh := func(e error) { t.Fatal(e) }
 	fmt.Println(os.Getwd())
-	_, err := ParseFile("../gc/typecheck.go", nil, nil, 0)
+	_, err := ParseFile("/Users/mccolljr/dev/go/src/github.com/golang/go/src/internal/cpu/cpu.go", nil, nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
