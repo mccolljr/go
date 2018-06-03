@@ -34,6 +34,11 @@ func (s *sugarizer) run(errh func(error), file *File) (first error) {
 			if first == nil {
 				first = e
 			}
+			if errh != nil {
+				errh(e)
+			} else {
+				panic(e)
+			}
 		},
 	}
 
@@ -178,9 +183,13 @@ func (s *sugarizer) stmtList(list []Stmt) []Stmt {
 	return result
 }
 
+//go:noinline
 func (s *sugarizer) stmt(stmtArg Stmt) (replace Stmt, add []Stmt) {
 	s.deep++
 	if stmtArg != nil && s.deep > 10 {
+		if s.deep > 50 {
+			panic("out of control recursion")
+		}
 		fmt.Printf("|rdepth=%d| [%T]@%s\n\n", s.deep, stmtArg, stmtArg.Pos())
 	}
 	switch real := stmtArg.(type) {
@@ -414,6 +423,7 @@ func (s *sugarizer) exprAsValue(e Expr) Expr {
 	return got
 }
 
+//go:noinline
 func (s *sugarizer) expr(e Expr) Expr {
 	switch real := e.(type) {
 	case nil:
