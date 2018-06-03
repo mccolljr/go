@@ -5,10 +5,9 @@ import (
 	"sync"
 )
 
-type rules uint
-
-func (r rules) has(test rules) bool    { return r&test == test }
-func (r rules) hasAny(test rules) bool { return r&test > 0 }
+type rules struct {
+	collector, lhs, def, index, selector, slice, typename bool
+}
 
 var _stmtlists = sync.Pool{
 	New: func() interface{} { return make([]Stmt, 0, 256) },
@@ -24,25 +23,13 @@ func putStmtList(l []Stmt) {
 	}
 }
 
-const (
-	rCollector rules = 1 << iota
-	rLHS
-	rDef
-	rIndex
-	rSelector
-	rSlice
-	rTypeName
-
-	rDefault rules = 0
-)
-
 // a sugarizer walks a complete parse tree and applies syntactic sugar.
 // it does not type check, but it keeps track of what identifiers are
 // in scope
 type sugarizer struct {
 	errh func(error)
-
-	ruleState     []rules
+	
+	rules rules
 	seenCollector bool
 
 	scope *scope
@@ -50,6 +37,8 @@ type sugarizer struct {
 	targets []*Name
 
 	labelCt int
+
+	deep int
 }
 
 func (s *sugarizer) run(errh func(error), file *File) (first error) {
@@ -102,24 +91,24 @@ func (s *sugarizer) closeScope() {
 	s.scope = s.scope.parent
 }
 
-func (s *sugarizer) pushRulesCopy()             { s.pushRules(s.rules()) }
-func (s *sugarizer) pushRulesWith(add rules)    { s.pushRules(s.rules() | add) }
-func (s *sugarizer) pushRulesWithout(rem rules) { s.pushRules(s.rules() & ^rem) }
-func (s *sugarizer) pushRules(r rules)          { s.ruleState = append(s.ruleState, r) }
-func (s *sugarizer) popRules() {
-	ruleCount := len(s.ruleState)
-	if ruleCount > 0 {
-		s.ruleState = s.ruleState[:ruleCount-1]
-	}
-}
+// func (s *sugarizer) pushRulesCopy()             { s.pushRules(s.rules()) }
+// func (s *sugarizer) pushRulesWith(add rules)    { s.pushRules(s.rules() | add) }
+// func (s *sugarizer) pushRulesWithout(rem rules) { s.pushRules(s.rules() & ^rem) }
+// func (s *sugarizer) pushRules(r rules)          { s.ruleState = append(s.ruleState, r) }
+// func (s *sugarizer) popRules() {
+// 	ruleCount := len(s.ruleState)
+// 	if ruleCount > 0 {
+// 		s.ruleState = s.ruleState[:ruleCount-1]
+// 	}
+// }
 
-func (s *sugarizer) rules() rules {
-	ruleCount := len(s.ruleState)
-	if ruleCount > 0 {
-		return s.ruleState[ruleCount-1]
-	}
-	return rDefault
-}
+// func (s *sugarizer) rules() rules {
+// 	ruleCount := len(s.ruleState)
+// 	if ruleCount > 0 {
+// 		return s.ruleState[ruleCount-1]
+// 	}
+// 	return rDefault
+// }
 
 func (s *sugarizer) error(msg string, pos Pos) {
 	err := Error{Pos: pos, Msg: msg}
@@ -131,7 +120,7 @@ func (s *sugarizer) error(msg string, pos Pos) {
 }
 
 func (s *sugarizer) file(f *File) {
-	if s.rules() != rDefault {
+	if s.rules != rules2{} {
 		panic("unclosed rule state")
 	}
 
@@ -168,7 +157,8 @@ func (s *sugarizer) funcDecl(f *FuncDecl) {
 }
 
 func (s *sugarizer) funcBody(b *BlockStmt, t *FuncType) {
-	s.pushRulesWithout(rDef)
+	oldDef := s.rules.def
+	s.rules.def=false
 	for _, parm := range t.ParamList {
 		if parm.Name != nil && parm.Name.Value != "_" {
 			s.scope.set(parm.Name.Value, parm.Name)
@@ -184,7 +174,7 @@ func (s *sugarizer) funcBody(b *BlockStmt, t *FuncType) {
 	}
 
 	b.List = s.stmtList(b.List)
-	s.popRules()
+	s.rules.def=oldDef
 }
 
 func (s *sugarizer) stmtList(list []Stmt) []Stmt {
@@ -251,10 +241,9 @@ func (s *sugarizer) stmt(stmtArg Stmt) (replace Stmt, add []Stmt) {
 		}
 
 	case *AssignStmt:
+		oldDef := s.rules.def
 		if real.Op == Def {
-			s.pushRulesWith(rDef)
-		} else {
-			s.pushRulesCopy()
+			s.rules.def = true
 		}
 
 		real.Lhs = s.checkLHS(real.Lhs)
@@ -278,7 +267,7 @@ func (s *sugarizer) stmt(stmtArg Stmt) (replace Stmt, add []Stmt) {
 
 		real.Rhs = s.checkRHS(real.Rhs)
 
-		s.popRules()
+		s.rules.def = oldDef
 
 	case *BranchStmt:
 		real.Target, _ = s.stmt(real.Target)
@@ -376,7 +365,8 @@ func (s *sugarizer) stmt(stmtArg Stmt) (replace Stmt, add []Stmt) {
 		}
 
 		s.pushTarget(real.Target)
-		s.pushRulesWith(rCollector)
+		oldCol := s.rules.collector
+		s.rules.collector = true
 		s.openScope()
 		result.List = s.stmtList(real.Body.List)
 		replace = result
@@ -387,7 +377,7 @@ func (s *sugarizer) stmt(stmtArg Stmt) (replace Stmt, add []Stmt) {
 			},
 		}
 		s.closeScope()
-		s.popRules()
+		s.rules.collector = oldCol
 		s.popTarget()
 
 	default:
@@ -402,47 +392,53 @@ func (s *sugarizer) stmt(stmtArg Stmt) (replace Stmt, add []Stmt) {
 }
 
 func (s *sugarizer) checkLHS(lhs Expr) Expr {
-	s.pushRulesWith(rLHS)
+	oldLhs := s.rules.lhs
+	s.rules.lhs = true
 	lhs = s.expr(lhs)
-	s.popRules()
+	s.rules.lhs = s.rules.oldLhs
 	return lhs
 }
 
 func (s *sugarizer) checkRHS(rhs Expr) Expr { return s.expr(rhs) }
 
 func (s *sugarizer) exprAsType(e Expr) Expr {
-	s.pushRulesWith(rTypeName)
+	old := s.rules.typename
+	s.rules.typename = true
 	got := s.expr(e)
-	s.popRules()
+	s.rules.typename = old
 	return got
 }
 
 func (s *sugarizer) exprAsValue(e Expr) Expr {
-	s.pushRulesWithout(rTypeName)
+	old := s.rules.typename
+	s.rules.typename = false
 	got := s.expr(e)
-	s.popRules()
+	s.rules.typename = old
 	return got
 }
 
 func (s *sugarizer) expr(e Expr) Expr {
+	s.deep++
+	if s.deep > 100 {
+		panic("recursive depth too high")
+	}
 	switch real := e.(type) {
 	case nil:
 	case *Name:
-		rules := s.rules()
-		if rules.has(rTypeName) {
+		if s.rules.typename {
 			if real.Value == "_!" {
 				s.error("_! used as type", real.Pos())
 			}
-		} else if rules.has(rLHS) && !rules.hasAny(rIndex|rSelector|rSlice) {
+		} else if s.rules.lhs && !(s.rules.index||s.rules.selector||s.rules.slice) {
 			if real.Value == "_!" {
 				// if we have `_!`, that means we're in a collect block
 				// the parser rejects any program where this isn't true
 				// (for now),  but to be safe we keep the check
-				if !rules.has(rCollector) {
+				if s.rules.collector {
 					s.error("cannot use _! outside of a collect block", real.Pos())
 				}
 
-				if rules.has(rDef) {
+				if s.rules.def {
 					s.error("cannot declare _!", real.Pos())
 				}
 
@@ -452,11 +448,12 @@ func (s *sugarizer) expr(e Expr) Expr {
 
 				// signal that we've found one
 				s.seenCollector = true
+				s.deep--
 				return s.getTarget()
 			}
 		} else {
 			if real.Value == "_!" {
-				if !rules.has(rCollector) {
+				if s.rules.collector {
 					s.error("cannot use _! outside of collect block", real.Pos())
 				}
 
@@ -483,24 +480,27 @@ func (s *sugarizer) expr(e Expr) Expr {
 		s.funcBody(real.Body, real.Type)
 
 	case *SelectorExpr:
-		s.pushRulesWith(rSelector)
+		oldSel := s.rules.selector
+		s.rules.selector = true
 		real.Sel = s.expr(real.Sel).(*Name)
 		real.X = s.expr(real.X)
-		s.popRules()
+		s.rules.selector = oldSel
 
 	case *IndexExpr:
-		s.pushRulesWith(rIndex)
+		oldIdx := s.rules.index
+		s.rules.index = true
 		real.X = s.exprAsValue(real.X)
 		real.Index = s.exprAsValue(real.Index)
-		s.popRules()
+		s.rules.index = oldIdx
 
 	case *SliceExpr:
-		s.pushRulesWith(rSlice)
+		oldSli := s.rules.slice
+		s.rules.slice = true
 		real.X = s.exprAsValue(real.X)
 		for i := 0; i < len(real.Index); i++ {
 			real.Index[i] = s.exprAsValue(real.Index[i])
 		}
-		s.popRules()
+		s.rules.slice = oldSli
 
 	case *AssertExpr:
 		real.X = s.exprAsValue(real.X)
@@ -574,6 +574,7 @@ func (s *sugarizer) expr(e Expr) Expr {
 		panic(fmt.Sprintf("unhandled expr %T", e))
 	}
 
+	s.deep--
 	return e
 }
 
