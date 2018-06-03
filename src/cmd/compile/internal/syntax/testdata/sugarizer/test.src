@@ -1,4 +1,4 @@
-package syntax
+package main
 
 import (
 	"fmt"
@@ -428,9 +428,7 @@ func (s *sugarizer) expr(e Expr) Expr {
 	switch real := e.(type) {
 	case nil:
 	case *Name:
-		if real == nil {
-			// do nothing
-		} else if s.rules.typename {
+		if s.rules.typename {
 			if real.Value == "_!" {
 				s.error("_! used as type", real.Pos())
 			}

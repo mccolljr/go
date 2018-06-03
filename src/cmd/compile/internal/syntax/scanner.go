@@ -350,7 +350,6 @@ func (s *scanner) ident() {
 	if string(s.peekLit()) == "_!" {
 		if !s.hasSpecial() {
 			s.ungetr()
-			panic("_! (collect target) not allowed")
 		}
 	} else {
 		s.ungetr()

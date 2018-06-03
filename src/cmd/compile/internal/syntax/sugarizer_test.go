@@ -2,6 +2,8 @@ package syntax
 
 import (
 	"bytes"
+	"fmt"
+	"os"
 	"testing"
 )
 
@@ -15,56 +17,56 @@ import (
 )
 
 func main() {
-	var (
-		data = []byte("{\"Test\": 12, \"Test2\": \"test\"}")
-		
-		ok struct {
-			Test int
-			Test2 string
-		}
-
-		bad struct {
-			Test string
-			Test2 int
-		}
-	)
-
-	var err error
-	_collect_ err {
-		other := func() {
-			//var x error
-			_collect_ err {
-				_! = errors.New("test")
+	func(){
+		var (
+			data = []byte("{\"Test\": 12, \"Test2\": \"test\"}")
+			
+			ok struct {
+				Test int
+				Test2 string
 			}
-
-			if x != nil {
-				panic(x)
+	
+			bad struct {
+				Test string
+				Test2 int
+			}
+		)
+	
+		var err error
+		_collect_ err {
+			other := func() {
+				//var x error
+				_collect_ err {
+					_! = errors.New("test")
+				}
+	
+				if x != nil {
+					panic(x)
+				}
+			}
+	
+			_! = json.Unmarshal(data, &ok)
+			_! = json.Unmarshal(data, &bad)
+	
+			var otherErr error
+			_collect_ otherErr {
+				_! = errors.New("oh no!")			
 			}
 		}
-
-		_! = json.Unmarshal(data, &ok)
-		_! = json.Unmarshal(data, &bad)
-
-		var otherErr error
-		_collect_ otherErr {
-			_! = errors.New("oh no!")			
+	
+		if err != nil {
+			fmt.Println(err)
 		}
-	}
-
-	if err != nil {
-		fmt.Println(err)
-	}
+	}()
 }
 `
 
 func TestSugarizer(t *testing.T) {
 	errh := func(e error) { t.Fatal(e) }
+	fmt.Println(os.Getwd())
+	file, _ := ParseFile("testdata/sugarizer/test.src", errh, nil, 0)
 
-	file, _ := Parse(
-		NewFileBase("test_sugar.go"),
-		bytes.NewBufferString(sugarizerTestOK),
-		errh, nil, 0,
-	)
+	new(sugarizer).run(errh, file)
 
 	buf := new(bytes.Buffer)
 	if err := Fdump(buf, file); err != nil {
